@@ -1,13 +1,12 @@
+#if !NO_LIQUID_GLASS
 @available(macOS 26.0, *)
 class LiquidGlassEffectView: NSGlassEffectView, EffectView {
     private typealias SetVariantType = @convention(c) (AnyObject, Selector, Int) -> Void
     private static let setVariantSelector = NSSelectorFromString("set_variant:")
-
     static func canUsePrivateLiquidGlassLook() -> Bool {
         let method = class_getInstanceMethod(object_getClass(NSGlassEffectView()), setVariantSelector)
         return method != nil
     }
-
     convenience init(_ clear: Bool) {
         self.init()
         if clear {
@@ -18,10 +17,8 @@ class LiquidGlassEffectView: NSGlassEffectView, EffectView {
         }
         updateAppearance()
         wantsLayer = true
-        // without this, there are weird shadows around the corners
         layer!.masksToBounds = true
     }
-
     func safeSetVariant(_ value: Int) {
         if let method = class_getInstanceMethod(object_getClass(self), LiquidGlassEffectView.setVariantSelector) {
             let methodImplementation = method_getImplementation(method)
@@ -29,11 +26,17 @@ class LiquidGlassEffectView: NSGlassEffectView, EffectView {
             f(self, LiquidGlassEffectView.setVariantSelector, value)
         }
     }
-
     func updateAppearance() {
         cornerRadius = Appearance.windowCornerRadius
     }
 }
+#else
+class LiquidGlassEffectView: NSView, EffectView {
+    static func canUsePrivateLiquidGlassLook() -> Bool { false }
+    convenience init(_: Bool) { self.init() }
+    func updateAppearance() {}
+}
+#endif
 
 class FrostedGlassEffectView: NSVisualEffectView, EffectView {
     convenience init(_: Int?) {
@@ -43,14 +46,10 @@ class FrostedGlassEffectView: NSVisualEffectView, EffectView {
         wantsLayer = true
         updateAppearance()
     }
-
     func updateAppearance() {
         material = Appearance.material
         updateRoundedCorners(Appearance.windowCornerRadius)
     }
-
-    /// using layer!.cornerRadius works but the corners are aliased; this custom approach gives smooth rounded corners
-    /// see https://stackoverflow.com/a/29386935/2249756
     private func updateRoundedCorners(_ cornerRadius: CGFloat) {
         if cornerRadius == 0 {
             maskImage = nil
@@ -74,6 +73,7 @@ protocol EffectView: NSView {
 }
 
 func makeAppropriateEffectView() -> EffectView {
+    #if !NO_LIQUID_GLASS
     if #available(macOS 26.0, *) {
         if Preferences.appearanceStyle == .appIcons {
             if LiquidGlassEffectView.canUsePrivateLiquidGlassLook() {
@@ -89,6 +89,7 @@ func makeAppropriateEffectView() -> EffectView {
         Logger.debug { "Using LiquidGlassEffectView(false)" }
         return LiquidGlassEffectView(false)
     }
+    #endif
     Logger.debug { "Using FrostedGlassEffectView(nil)" }
     return FrostedGlassEffectView(nil)
 }

@@ -136,6 +136,7 @@ class TilesView {
         searchField.sendsSearchStringImmediately = true
         searchField.sendsWholeSearchString = true
         searchField.bezelStyle = .roundedBezel
+        #if !NO_LIQUID_GLASS
         if #available(macOS 26.0, *) {
             searchField.controlSize = .extraLarge
         } else if #available(macOS 13.0, *) {
@@ -143,6 +144,13 @@ class TilesView {
         } else {
             searchField.controlSize = .regular
         }
+        #elseif swift(>=5.0)
+        if #available(macOS 13.0, *) {
+            searchField.controlSize = .large
+        } else {
+            searchField.controlSize = .regular
+        }
+        #endif
         searchField.usesSingleLineMode = true
         searchField.target = Self.self
         searchField.action = #selector(Self.searchFieldChanged(_:))
