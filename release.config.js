@@ -15,13 +15,15 @@ module.exports = {
         }],
         '@semantic-release/release-notes-generator',
         ['@semantic-release/changelog', {
-            'changelogFile': 'changelog.md',
+            'changelogFile': 'docs/changelog.md',
         }],
         ['@semantic-release/git', {
             'assets': [
-                'changelog.md',
+                'docs/changelog.md',
+                'docs/appcast.xml',
                 'appcast.xml',
                 'README.md',
+                'docs/_layouts/default.html'
             ],
         }],
     ],
