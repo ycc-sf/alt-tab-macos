@@ -101,7 +101,10 @@ class AXCallScheduler {
     }
 
     private func queueForPid(_ pid: pid_t?) -> LabeledOperationQueue {
-        if let pid, unresponsivePids.contains(pid) {
+        lock.lock()
+        defer { lock.unlock() }
+        let isUnresponsive = pid.map { unresponsivePids.contains($0) } ?? false
+        if isUnresponsive {
             return retryQueue
         }
         return fastQueue
