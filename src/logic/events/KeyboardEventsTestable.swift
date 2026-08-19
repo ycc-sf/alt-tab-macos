@@ -1,5 +1,10 @@
 import ShortcutRecorder
 
+
+func shouldCancelWindowSwitching(_ type: CGEventType, _ keyCode: CGKeyCode, _ windowSwitcherIsActive: Bool) -> Bool {
+    windowSwitcherIsActive && type == .keyDown && keyCode == CGKeyCode(kVK_Escape)
+}
+
 class KeyboardEventsTestable {
     static var globalShortcutsIds: [String: Int] {
         var ids = [String: Int]()

@@ -36,6 +36,10 @@ class App {
         get { app.forceDoNothingOnRelease }
         set { app.forceDoNothingOnRelease = newValue }
     }
+    static func cancelWindowSwitching() {
+        guard appIsBeingUsed else { return }
+        appIsBeingUsed = false
+    }
 }
 
 class TilesPanel {
@@ -92,6 +96,9 @@ class ControlsTab {
         if action.starts(with: "nextWindowShortcut") {
             App.app.appIsBeingUsed = true
             App.app.shortcutIndex = Preferences.nameToIndex(action)
+        }
+        if action == "cancelShortcut" {
+            App.cancelWindowSwitching()
         }
     }
 

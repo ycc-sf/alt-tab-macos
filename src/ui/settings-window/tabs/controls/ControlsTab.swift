@@ -126,7 +126,7 @@ class ControlsTab {
         "vimCycleLeft": { App.cycleSelection(.left) },
         "vimCycleUp": { App.cycleSelection(.up) },
         "vimCycleDown": { App.cycleSelection(.down) },
-        "cancelShortcut": { App.cancelSearchModeOrHideUi() },
+        "cancelShortcut": { App.cancelWindowSwitching() },
         "closeWindowShortcut": { App.closeSelectedWindow() },
         "minDeminWindowShortcut": { App.minDeminSelectedWindow() },
         "toggleFullscreenWindowShortcut": { App.toggleFullscreenSelectedWindow() },

@@ -1,6 +1,9 @@
+import Foundation
+
 struct UsageStats {
     private static let defaults = UserDefaults(suiteName: "\(App.bundleIdentifier).usage")!
     private static let maxAge: TimeInterval = 365 * 24 * 3600
+    private static let queue = DispatchQueue(label: "com.lwouis.alt-tab-macos.usage-stats", qos: .utility)
     private static let allKeys = ["triggers", "searches", "triggersAppIcons", "triggersTitles", "triggersAutoSize", "triggersExtraShortcuts"]
     private(set) static var searchRecordedThisSession = false
 
@@ -24,23 +27,31 @@ struct UsageStats {
 
     static func count(_ key: String, since date: Date) -> Int {
         let threshold = Int(date.timeIntervalSince1970)
-        return getTimestamps(key).count { $0 >= threshold }
+        return queue.sync { getTimestamps(key).count { $0 >= threshold } }
     }
 
     static func prune() {
         let cutoff = Int(Date().timeIntervalSince1970 - maxAge)
-        for key in allKeys {
-            let timestamps = getTimestamps(key)
-            guard !timestamps.isEmpty else { continue }
-            let pruned = timestamps.filter { $0 >= cutoff }
-            defaults.set(pruned, forKey: key)
+        queue.async {
+            for key in allKeys {
+                let timestamps = getTimestamps(key)
+                guard !timestamps.isEmpty else { continue }
+                defaults.set(timestamps.filter { $0 >= cutoff }, forKey: key)
+            }
         }
     }
 
+    static func flush() {
+        queue.sync {}
+    }
+
     private static func record(_ key: String) {
-        var timestamps = getTimestamps(key)
-        timestamps.append(Int(Date().timeIntervalSince1970))
-        defaults.set(timestamps, forKey: key)
+        let timestamp = Int(Date().timeIntervalSince1970)
+        queue.async {
+            var timestamps = getTimestamps(key)
+            timestamps.append(timestamp)
+            defaults.set(timestamps, forKey: key)
+        }
     }
 
     private static func getTimestamps(_ key: String) -> [Int] {

@@ -57,6 +57,7 @@ class App: AppCenterApplication {
         Logger.info { "appIsBeingUsed:\(appIsBeingUsed)" }
         guard appIsBeingUsed else { return } // already hidden
         appIsBeingUsed = false
+        KeyboardEvents.setWindowSwitcherActive(false)
         isFirstSummon = true
         forceDoNothingOnRelease = false
         UsageStats.resetSession()
@@ -125,13 +126,9 @@ class App: AppCenterApplication {
         TilesView.lockSearchMode()
     }
 
-    static func cancelSearchModeOrHideUi() {
+    static func cancelWindowSwitching() {
         guard appIsBeingUsed else { return }
-        if TilesView.isSearchModeOn {
-            TilesView.disableSearchMode()
-        } else {
-            hideUi()
-        }
+        hideUi()
     }
 
     static func focusTarget() {
@@ -299,7 +296,8 @@ class App: AppCenterApplication {
         forceDoNothingOnRelease = forceDoNothingOnRelease_
         Logger.debug { "isFirstSummon:\(isFirstSummon) shortcutIndex:\(shortcutIndex)" }
         appIsBeingUsed = true
-        UsageStats.recordTrigger(shortcutIndex)
+        KeyboardEvents.setWindowSwitcherActive(true)
+        if isFirstSummon { UsageStats.recordTrigger(shortcutIndex) }
         if isFirstSummon || shortcutIndex != App.shortcutIndex {
             NSScreen.updatePreferred()
             if isVeryFirstSummon {
@@ -430,6 +428,7 @@ extension App: NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Logger.info { "" }
+        UsageStats.flush()
         makeSureAllCapturesAreFinished()
         return .terminateNow
     }

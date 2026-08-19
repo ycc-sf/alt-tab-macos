@@ -1,6 +1,13 @@
 import XCTest
+import Carbon.HIToolbox.Events
 
 final class KeyboardEventsUtilsTests: XCTestCase {
+    func testGlobalEscapeCancelsRegardlessOfHeldModifiers() throws {
+        XCTAssertTrue(shouldCancelWindowSwitching(.keyDown, CGKeyCode(kVK_Escape), true))
+        XCTAssertFalse(shouldCancelWindowSwitching(.keyUp, CGKeyCode(kVK_Escape), true))
+        XCTAssertFalse(shouldCancelWindowSwitching(.keyDown, CGKeyCode(kVK_Tab), true))
+        XCTAssertFalse(shouldCancelWindowSwitching(.keyDown, CGKeyCode(kVK_Escape), false))
+    }
     // alt-down > tab-down > tab-up > alt-up
     func testMostCommonSequence() throws {
         resetState()
@@ -139,6 +146,20 @@ final class KeyboardEventsUtilsTests: XCTestCase {
         ModifierFlags.current = []
         handleKeyboardEvent(nil, nil, nil, [], false)
         XCTAssertEqual(ControlsTab.shortcutsActionsTriggered, ["nextWindowShortcut"])
+    }
+
+    func testEscapeAllowsNextTabWhileHoldShortcutRemainsPressed() throws {
+        resetState()
+        ModifierFlags.current = [.option]
+        handleKeyboardEvent(nil, nil, nil, [.option], false)
+        handleKeyboardEvent(KeyboardEventsTestable.globalShortcutsIds["nextWindowShortcut"], .down, nil, nil, false)
+        handleKeyboardEvent(KeyboardEventsTestable.globalShortcutsIds["nextWindowShortcut"], .up, nil, nil, false)
+        App.cancelWindowSwitching()
+        XCTAssertFalse(App.appIsBeingUsed)
+
+        handleKeyboardEvent(KeyboardEventsTestable.globalShortcutsIds["nextWindowShortcut"], .down, nil, nil, false)
+        XCTAssertTrue(App.appIsBeingUsed)
+        XCTAssertEqual(ControlsTab.shortcutsActionsTriggered, ["nextWindowShortcut", "nextWindowShortcut"])
     }
 
     // alt-down > tab-down > tab-up > `-down > `-up

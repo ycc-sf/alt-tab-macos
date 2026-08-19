@@ -10,8 +10,17 @@ class KeyboardEvents {
     private static var hotKeyReleasedEventHandler: EventHandlerRef?
     private static var globalShortcutsAreDisabled = false
     private static var eventTap: CFMachPort?
+    private static let windowSwitcherStateLock = NSLock()
+    private static var windowSwitcherIsActive = false
 
-    private static let cgEventFlagsChangedHandler: CGEventTapCallBack = { _, type, cgEvent, _ in
+    private static let cgEventHandler: CGEventTapCallBack = { _, type, cgEvent, _ in
+        if type == .keyDown {
+            let keyCode = CGKeyCode(cgEvent.getIntegerValueField(.keyboardEventKeycode))
+            if shouldCancelWindowSwitching(type, keyCode, isWindowSwitcherActive()) {
+                DispatchQueue.main.async { App.cancelWindowSwitching() }
+                return nil
+            }
+        }
         if type == .flagsChanged {
             // TODO: it would be great to shortcut matching and trigger on the background thread
             // it would enable us to set App.shared.isBeingUsed here, and could stop tasks on main when they check the flag
@@ -21,10 +30,9 @@ class KeyboardEvents {
                 // it was pressed down before AltTab was triggered, so we should let the up event through
                 handleKeyboardEvent(nil, nil, nil, modifiers, false)
             }
-        } else if (type == .tapDisabledByUserInput || type == .tapDisabledByTimeout) {
+        } else if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
             CGEvent.tapEnable(tap: eventTap!, enable: true)
         }
-        // we always return this because we want to let these event pass through to the currently focused app
         return Unmanaged.passUnretained(cgEvent)
     }
 
@@ -59,7 +67,19 @@ class KeyboardEvents {
 
     static func addEventHandlers() {
         addLocalMonitorForKeyDownAndKeyUp()
-        addCgEventTapForModifierFlags()
+        addCgEventTapForKeyboardEvents()
+    }
+
+    static func setWindowSwitcherActive(_ active: Bool) {
+        windowSwitcherStateLock.lock()
+        defer { windowSwitcherStateLock.unlock() }
+        windowSwitcherIsActive = active
+    }
+
+    private static func isWindowSwitcherActive() -> Bool {
+        windowSwitcherStateLock.lock()
+        defer { windowSwitcherStateLock.unlock() }
+        return windowSwitcherIsActive
     }
 
     private static func unregisterHotKeyIfNeeded(_ controlId: String, _ shortcut: Shortcut) {
@@ -94,16 +114,16 @@ class KeyboardEvents {
         }
     }
 
-    private static func addCgEventTapForModifierFlags() {
-        let eventMask = [CGEventType.flagsChanged].reduce(CGEventMask(0), { $0 | (1 << $1.rawValue) })
+    private static func addCgEventTapForKeyboardEvents() {
+        let eventMask = [CGEventType.flagsChanged, .keyDown].reduce(CGEventMask(0), { $0 | (1 << $1.rawValue) })
         // CGEvent.tapCreate returns null if ensureAccessibilityCheckboxIsChecked() didn't pass
         // CGEvent.tapCreate is unaffected by SecureInput for .flagsChanged
         eventTap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
-            options: .listenOnly,
+            options: .defaultTap,
             eventsOfInterest: eventMask,
-            callback: cgEventFlagsChangedHandler,
+            callback: cgEventHandler,
             userInfo: nil)
         if let eventTap {
             let runLoopSource = CFMachPortCreateRunLoopSource(nil, eventTap, 0)
