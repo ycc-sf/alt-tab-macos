@@ -229,6 +229,14 @@ class App: AppCenterApplication {
         showUiOrCycleSelection(shortcutIndex, true)
     }
 
+    private static func shouldDeferWindowRefresh(_ shortcutIndex: Int, _ forceDoNothingOnRelease_: Bool) -> Bool {
+        let windowOrders = Preferences.windowOrder
+        guard !forceDoNothingOnRelease_, Preferences.windowDisplayDelay != DispatchTimeInterval.milliseconds(0),
+              Preferences.shortcutStyle == .focusOnRelease, shortcutIndex >= 0, shortcutIndex < windowOrders.count,
+              windowOrders[shortcutIndex] == .recentlyFocused, !Windows.fastSwitchCacheNeedsRefresh else { return false }
+        return Windows.list.count > 1
+    }
+
     @objc static func showUiFromShortcut0() {
         showUi(0)
     }
@@ -253,6 +261,9 @@ class App: AppCenterApplication {
         hideUi(true)
         if let window = selectedWindow, MissionControl.state() == .inactive || MissionControl.state() == .showDesktop {
             window.focus()
+            // 快捷键释放时目标已经确定，先同步更新 MRU，避免等待 AX 焦点事件导致下一次切换读到旧顺序。
+            window.application.focusedWindow = window
+            _ = Windows.updateLastFocusOrder(window)
             if Preferences.cursorFollowFocus == .always || (
                 Preferences.cursorFollowFocus == .differentScreen && (Spaces.screenSpacesMap.first { $0.value.contains { space in window.spaceIds.contains(space) } })?.key != NSScreen.active()?.cachedUuid()) {
                 moveCursorToSelectedWindow(window)
@@ -311,15 +322,24 @@ class App: AppCenterApplication {
             if shouldStartInSearchMode {
                 forceDoNothingOnRelease = true
             }
-            if !Windows.updatesBeforeShowing() { hideUi(); return }
+            let shouldDeferWindowRefresh = Self.shouldDeferWindowRefresh(shortcutIndex, forceDoNothingOnRelease_)
+            if !shouldDeferWindowRefresh && !Windows.updatesBeforeShowing() { hideUi(); return }
             Windows.setInitialSelectedAndHoveredWindowIndex()
             if Preferences.windowDisplayDelay == DispatchTimeInterval.milliseconds(0) {
                 buildUiAndShowPanel()
             } else {
                 delayedDisplayScheduled += 1
                 DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + Preferences.windowDisplayDelay) { () -> () in
-                    if delayedDisplayScheduled == 1 {
-                        buildUiAndShowPanel()
+                    if delayedDisplayScheduled == 1 && appIsBeingUsed {
+                        let canBuildUi = !shouldDeferWindowRefresh || Windows.updatesBeforeShowing()
+                        if canBuildUi {
+                            if shouldDeferWindowRefresh {
+                                Windows.updateSelectedWindow()
+                            }
+                            buildUiAndShowPanel()
+                        } else {
+                            hideUi()
+                        }
                     }
                     delayedDisplayScheduled -= 1
                 }

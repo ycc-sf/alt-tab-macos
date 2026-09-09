@@ -2,6 +2,7 @@ import Cocoa
 
 class Windows {
     static var list = [Window]()
+    private(set) static var fastSwitchCacheNeedsRefresh = true
     static var selectedWindowIndex = Int(0)
     static var selectedWindowTarget: String?
     static var hoveredWindowIndex: Int?
@@ -90,7 +91,10 @@ class Windows {
 
     static func updatesBeforeShowing() -> Bool {
         if MissionControl.state() == .showAllWindows || MissionControl.state() == .showFrontWindows { return false }
-        if list.isEmpty { return true }
+        if list.isEmpty {
+            fastSwitchCacheNeedsRefresh = false
+            return true
+        }
         // TODO: find a way to update space info when spaces are changed, instead of on every trigger
         // workaround: when Preferences > Mission Control > "Displays have separate Spaces" is unchecked,
         // switching between displays doesn't trigger .activeSpaceDidChangeNotification; we get the latest manually
@@ -101,7 +105,12 @@ class Windows {
         }
         refreshWhichWindowsToShowTheUser()
         sort()
+        fastSwitchCacheNeedsRefresh = false
         return true
+    }
+
+    static func invalidateFastSwitchCache() {
+        fastSwitchCacheNeedsRefresh = true
     }
 
     // dispatch screenshot requests off the main-thread, then wait for completion
@@ -209,6 +218,10 @@ class Windows {
     //////////////////////////////
 
     static func selectedWindow() -> Window? {
+        if let selectedWindowTarget {
+            guard let window = list.first(where: { $0.id == selectedWindowTarget }) else { return nil }
+            return shouldDisplay(window) ? window : nil
+        }
         guard list.count > selectedWindowIndex else { return nil }
         let window = list[selectedWindowIndex]
         return shouldDisplay(window) ? window : nil
@@ -464,7 +477,10 @@ class Windows {
 
     static func updateLastFocusOrder(_ focusedWindow: Window) -> [Window]? {
         // no need to update the list is the window is already lastFocusOrder 0
-        guard focusedWindow.lastFocusOrder != 0 && list.count > 1, let previousFocus = (list.first { $0.lastFocusOrder == 0 }) else { return [focusedWindow] }
+        guard focusedWindow.lastFocusOrder != 0 && list.count > 1, let previousFocus = (list.first { $0.lastFocusOrder == 0 }) else {
+            sortForFastSwitchIfNeeded()
+            return [focusedWindow]
+        }
         // 2 windows have recently changed: the one which got focused, and the one who just lost focus
         let windowsToRefresh = [focusedWindow, previousFocus]
         let focusedWindowOldFocusOrder = focusedWindow.lastFocusOrder
@@ -475,7 +491,13 @@ class Windows {
                 $0.lastFocusOrder += 1
             }
         }
+        sortForFastSwitchIfNeeded()
         return windowsToRefresh
+    }
+
+    private static func sortForFastSwitchIfNeeded() {
+        guard !App.appIsBeingUsed, Preferences.windowOrder[App.shortcutIndex] == .recentlyFocused else { return }
+        sort()
     }
 
     static func findOrCreate(_ windowAxUiElement: AXUIElement, _ wid: CGWindowID, _ app: Application, _ level: CGWindowLevel, _ title: String?, _ subrole: String?, _ role: String?, _ size: CGSize?, _ position: CGPoint?, _ isFullscreen: Bool?, _ isMinimized: Bool?) -> (Window?, Bool) {
@@ -491,6 +513,7 @@ class Windows {
     }
 
     static func appendWindow(_ window: Window) {
+        fastSwitchCacheNeedsRefresh = true
         window.lastFocusOrder = list.count
         list.append(window)
         if list.count > TilesView.recycledViews.count {
@@ -499,6 +522,7 @@ class Windows {
     }
 
     static func removeWindows(_ windows: [Window], _ addWindowlessWindowIfNeeded: Bool) {
+        fastSwitchCacheNeedsRefresh = true
         for w in windows {
             if w.application.focusedWindow?.cgWindowId == w.cgWindowId {
                 w.application.focusedWindow = nil

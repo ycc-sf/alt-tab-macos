@@ -73,6 +73,7 @@ class AccessibilityEvents {
     }
 
     private static func applicationHiddenOrShown(_ app: Application, _ pid: pid_t, _ type: String) {
+        Windows.invalidateFastSwitchCache()
         app.isHidden = type == kAXApplicationHiddenNotification
         let windows = Windows.list.filter {
             // for AXUIElement of apps, CFEqual or == don't work; looks like a Cocoa bug
@@ -95,6 +96,9 @@ class AccessibilityEvents {
             Applications.windowListUpdateThrottler.throttleOrProceed(key: "\(wid)") {
                 guard let app = Applications.findOrCreate(pid, false) else { return }
                 Logger.info { "\(type) wid:\(wid) app:\(app.debugId)" }
+                if type != kAXFocusedWindowChangedNotification && type != kAXMainWindowChangedNotification {
+                    Windows.invalidateFastSwitchCache()
+                }
                 let findOrCreate = Windows.findOrCreate(element, wid, app, level, a.title, a.subrole, a.role, a.size, a.position, a.isFullscreen, a.isMinimized)
                 guard let window = findOrCreate.0 else {
                     // we don't know this window, but it got focused, so let's update app.focusedWindow with nil

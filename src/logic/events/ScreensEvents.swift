@@ -11,6 +11,7 @@ class ScreensEvents {
         // screen notifications often arrive in groups (e.g. 2 in a row in a short time)
         throttler.throttleOrProceed {
             Logger.debug { notification.name.rawValue }
+            Windows.invalidateFastSwitchCache()
             Spaces.refresh()
             Screens.refresh()
             // a screen added or removed, or screen resolution change can mess up layout; we reset components

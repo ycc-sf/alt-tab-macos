@@ -23,7 +23,7 @@ class Preferences {
             "cursorFollowFocus": CursorFollowFocus.never.indexAsString,
             "showTabsAsWindows": "false",
             "hideColoredCircles": "false",
-            "windowDisplayDelay": "100",
+            "windowDisplayDelay": "150",
             "appearanceStyle": AppearanceStylePreference.thumbnails.indexAsString,
             "appearanceSize": AppearanceSizePreference.auto.indexAsString,
             "appearanceTheme": AppearanceThemePreference.system.indexAsString,
